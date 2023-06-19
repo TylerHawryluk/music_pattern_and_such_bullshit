@@ -1,0 +1,200 @@
+import numpy as np
+from PIL import Image
+from mido import Message, MidiFile, MidiTrack
+import tkinter as tk
+from tkinter import filedialog, messagebox
+from tkinter.ttk import Style, Scale, Label, Button, Combobox
+import pydub
+
+# Define the musical parameters
+note_range_start = 60  # Starting note of the range (e.g., C4)
+note_range_end = 72  # Ending note of the range (e.g., C5)
+note_duration = 0.2  # The duration of each note in seconds
+velocity = 64  # MIDI velocity (0-127)
+pattern_image = None  # Placeholder for the selected pattern image
+
+# Function to generate the MIDI melody
+def generate_midi():
+    global pattern_image
+    
+    # Get the image file path
+    image_path = filedialog.askopenfilename(filetypes=[("Image Files", "*.png")])
+    
+    # Return if no file selected
+    if not image_path:
+        return
+    
+    try:
+        # Load the image and convert it to grayscale
+        pattern_image = Image.open(image_path).convert('L')
+        pattern_image = pattern_image.resize((500, pattern_image.height))
+
+        # Display the pattern image
+        pattern_image_label.configure(image=pattern_image)
+        pattern_image_label.image = pattern_image
+        
+        messagebox.showinfo("Pattern Selected", "Pattern selected successfully!")
+    except Exception as e:
+        messagebox.showerror("Error", str(e))
+
+# Function to generate the audio preview of the melody
+def preview_audio():
+    global pattern_image
+    
+    # Return if no pattern image selected
+    if pattern_image is None:
+        messagebox.showerror("Error", "No pattern image selected!")
+        return
+    
+    try:
+        # Convert the pattern image pixels to notes
+        notes = [convert_pixel_to_note(pixel) for pixel in pattern_image.getdata()]
+
+        # Create a MIDI track and add the notes
+        track = MidiTrack()
+        for note in notes:
+            track.append(Message('note_on', note=note, velocity=velocity, time=0))
+            track.append(Message('note_off', note=note, velocity=velocity, time=int(note_duration * 1000)))
+
+        # Generate the audio preview
+        output_file = "audio_preview.mid"
+        midi = MidiFile()
+        midi.tracks.append(track)
+        midi.save(output_file)
+        
+        messagebox.showinfo("Audio Preview", "Audio preview generated successfully! You can listen to it.")
+    except Exception as e:
+        messagebox.showerror("Error", str(e))
+
+# Function to convert MIDI to MP3
+def convert_to_mp3():
+    global pattern_image
+    
+    # Return if no pattern image selected
+    if pattern_image is None:
+        messagebox.showerror("Error", "No pattern image selected!")
+        return
+    
+    try:
+        # Convert the pattern image pixels to notes
+        notes = [convert_pixel_to_note(pixel) for pixel in pattern_image.getdata()]
+
+        # Create a MIDI track and add the notes
+        track = MidiTrack()
+        for note in notes:
+            track.append(Message('note_on', note=note, velocity=velocity, time=0))
+            track.append(Message('note_off', note=note, velocity=velocity, time=int(note_duration * 1000)))
+
+        # Generate the MIDI file
+        midi_file = MidiFile()
+        midi_file.tracks.append(track)
+        midi_file.save("output.mid")
+        
+        # Convert MIDI to MP3
+        audio = pydub.AudioSegment.from_file("output.mid", format="midi")
+        audio.export("output.mp3", format="mp3")
+        
+        messagebox.showinfo("Conversion Complete", "MIDI to MP3 conversion completed successfully!")
+    except Exception as e:
+        messagebox.showerror("Error", str(e))
+
+# Define the MIDI note conversion function
+def convert_pixel_to_note(pixel_value):
+    # Map the pixel value to a note within the defined range
+    note = int(np.interp(pixel_value, [0, 255], [note_range_start, note_range_end]))
+    return note
+
+# Function to update the note range start parameter
+def update_note_range_start(value):
+    global note_range_start
+    note_range_start = int(float(value))
+
+# Function to update the note range end parameter
+def update_note_range_end(value):
+    global note_range_end
+    note_range_end = int(float(value))
+
+# Function to update the note duration parameter
+def update_note_duration(value):
+    global note_duration
+    note_duration = float(value)
+
+# Function to update the velocity parameter
+def update_velocity(value):
+    global velocity
+    velocity = int(float(value))
+
+# Function to handle file format selection
+def select_file_format(event):
+    selected_format = file_format_combobox.get()
+    if selected_format == "MIDI":
+        generate_button.configure(command=generate_midi)
+    elif selected_format == "MP3":
+        generate_button.configure(command=convert_to_mp3)
+
+# Create the GUI
+root = tk.Tk()
+root.title("Pattern to Melody")
+root.configure(bg='black')
+
+# Set the dark theme style
+style = Style()
+style.theme_use('clam')
+style.configure("TScale", background='black', foreground='white', troughcolor='gray', sliderlength=20)
+style.configure("TButton", foreground='black')  # Change button text color
+
+# Add sliders for parameter adjustment
+note_range_start_label = Label(root, text="Note Range Start", foreground='white', background='black')
+note_range_start_label.pack(padx=20, pady=(10, 0))
+note_range_start_scale = Scale(root, from_=0, to=127, orient='horizontal',
+                               command=update_note_range_start, style="TScale")
+note_range_start_scale.set(note_range_start)
+note_range_start_scale.pack(padx=20, pady=(0, 10))
+
+note_range_end_label = Label(root, text="Note Range End", foreground='white', background='black')
+note_range_end_label.pack(padx=20, pady=(10, 0))
+note_range_end_scale = Scale(root, from_=0, to=127, orient='horizontal',
+                             command=update_note_range_end, style="TScale")
+note_range_end_scale.set(note_range_end)
+note_range_end_scale.pack(padx=20, pady=(0, 10))
+
+note_duration_label = Label(root, text="Note Duration (s)", foreground='white', background='black')
+note_duration_label.pack(padx=20, pady=(10, 0))
+note_duration_scale = Scale(root, from_=0.1, to=1.0, orient='horizontal',
+                            command=update_note_duration, style="TScale")
+note_duration_scale.set(note_duration)
+note_duration_scale.pack(padx=20, pady=(0, 10))
+
+velocity_label = Label(root, text="Velocity", foreground='white', background='black')
+velocity_label.pack(padx=20, pady=(10, 0))
+velocity_scale = Scale(root, from_=0, to=127, orient='horizontal',
+                       command=update_velocity, style="TScale")
+velocity_scale.set(velocity)
+velocity_scale.pack(padx=20, pady=(0, 10))
+
+# Add a button to select the pattern image
+pattern_button = Button(root, text="Select Pattern", command=generate_midi)
+pattern_button.pack(padx=20, pady=10)
+
+# Add a label to display the selected pattern image
+pattern_image_label = Label(root)
+pattern_image_label.pack(padx=20, pady=10)
+
+# Add a dropdown menu for file format selection
+file_format_label = Label(root, text="Output Format", foreground='white', background='black')
+file_format_label.pack(padx=20, pady=(10, 0))
+file_formats = ["MIDI", "MP3"]
+file_format_combobox = Combobox(root, values=file_formats, state="readonly")
+file_format_combobox.current(0)
+file_format_combobox.bind("<<ComboboxSelected>>", select_file_format)
+file_format_combobox.pack(padx=20, pady=(0, 10))
+
+# Add a button to generate the output file
+generate_button = Button(root, text="Generate", command=generate_midi)
+generate_button.pack(padx=20, pady=10)
+
+# Add a button to preview the audio
+preview_button = Button(root, text="Preview Audio", command=preview_audio)
+preview_button.pack(padx=20, pady=10)
+
+root.mainloop()
